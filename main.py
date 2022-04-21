@@ -7,12 +7,14 @@ from tkinter.ttk import Progressbar
 from urllib.request import urlopen
 from threading import Thread, Event 
 
-
-
 class DownloadThread(Thread):
     def __init__(self):
         super().__init__()
         self.read_percentage = 0
+        self.event = Event()
+
+    def stop(self):
+        self.event.set()
 
     def run(self):
         with urlopen('https://wordpress.org/latest.tar.gz') as request:
@@ -20,7 +22,6 @@ class DownloadThread(Thread):
                 tarball_size = int(request.getheader('Content-Length'))
                 chunk_size = 1024
                 read_chunks = 0
-
 
                 while True:
                     chunk = request.read(chunk_size)
@@ -30,6 +31,7 @@ class DownloadThread(Thread):
                     read_chunks += 1
                     self.read_percentage = 100 * chunk_size * read_chunks / tarball_size
                     tarball.write(chunk)
+
 
 class WordPressDownloader(Tk):
     def __init__(self,download_thread, *args, **kwargs):
@@ -44,6 +46,9 @@ class WordPressDownloader(Tk):
 
         self.button = Button(self, text='Download', command=self.handle_download)
         self.button.pack(padx=10, pady=3, anchor='e')
+        
+        self.download_thread = download_thread
+        self.protocol('WM_DELETE_WINDOW', self.on_window_delete)
 
     def update_progress_bar(self):
         if self.download_thread.is_alive():
@@ -53,7 +58,13 @@ class WordPressDownloader(Tk):
     def handle_download(self):
         self.download_thread.start()
         self.update_progress_bar()
-        
+    
+    def on_window_delete(self):
+        if self.download_thread.is_alive():
+            self.download_thread.stop()
+            self.download_thread.join()
+
+        self.destroy()
 
 
 download_thread = DownloadThread()
